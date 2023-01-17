@@ -76,6 +76,8 @@ enhancer_quant_list <- lapply(enhancer_quant_list, subset_quants)
 
 enhancer_quant_list <- lapply(enhancer_quant_list, filter_chr_col)
 
+enhancer_quant_0h <- enhancer_quant_list$`0h_AL`
+
 enhancer_quant_gr_list <- lapply(enhancer_quant_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
 
 
@@ -163,12 +165,67 @@ tss_out <- tss_per_gene %>%
            strand,
            biotype = gene_biotype)
 
+tss_out$tss_1 <- tss_out$tss + 1 
+
+tss_gr <- makeGRangesFromDataFrame(tss_out, seqnames.field = "chr", start.field = "tss", end.field = "tss_1",
+                                   strand.field = "strand", keep.extra.columns = TRUE, ignore.strand = FALSE)
+
 
 gr_0h <- rose_gr_list$`0h_AL`
 
-gr_0h$genes <- 
 
+extend_range <- function(mode, position, extend_by = 50000) {
+    
+    if (mode == "start") {
+        
+        if((position - extend_by) < 0) {
+            start_extended <- 0
+        } else {
+            start_extended <- position - extend_by
+        }
+        
+        return(start_extended)
+    } else if (mode == "end") {
+        
+        end_extended <- position + extend_by
+        
+        return(end_extended)
+    } else {
+        
+        stop("mode must be one of either 'start' or 'end'")
+        
+    }
+    
+}
 
+enhancer_quant_0h <- enhancer_quant_list$`0h_AL`
+
+enhancer_tss_annotation <- function(enhancer, tss = tss_out) {
+    
+    for (i in 1:nrow(enhancer)) {
+        
+        start_extended <- extend_range(mode = "start", position = enhancer[i, "start"])
+        
+        end_extended <- extend_range(mode = "end", position = enhancer[i, "end"])
+        
+        annotated_genes <- vector()    
+        
+        for(j in 1:nrow(tss)) {
+            
+            if (tss[j, "tss"] > start_extended & tss[j, "tss_1"] < end_extended) {
+                annotated_genes <- base::append(annotated_genes, tss[j, "gene_name"])
+            }
+            
+            return(annotated_genes)
+        }
+        
+        enhancer[i, "annotated_genes"] <- annotated_genes
+    }
+    
+    return(enhancer)
+}
+
+enhancer_quant_0h <- enhancer_tss_annotation(enhancer_quant_0h)
 
 
 
