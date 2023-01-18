@@ -42,6 +42,29 @@ sort_df <- function(df) {
     df[order(df$chr),]
 }
 
+extend_range <- function(mode, position, extend_by = 50000) {
+    
+    if (mode == "start") {
+        
+        if((position - extend_by) < 0) {
+            start_extended <- 0
+        } else {
+            start_extended <- position - extend_by
+        }
+        
+        return(start_extended)
+    } else if (mode == "end") {
+        
+        end_extended <- position + extend_by
+        
+        return(end_extended)
+    } else {
+        
+        stop("mode must be one of either 'start' or 'end'")
+        
+    }
+    
+}
 
 # first read all ROSE output files into a list and make GRanges ####
 
@@ -58,11 +81,18 @@ rose_out_list <- lapply(rose_out_list, rose_enhancer_id)
 
 rose_out_list <- lapply(rose_out_list, sort_df)
 
-rose_gr_list <- lapply(rose_out_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
+
+rose_extended_list <- lapply(rose_out_list, function(df) { df$START <- as.integer(df$START - 50000) 
+return(df)}) %>% lapply(., function(df) { df$STOP <- as.integer(df$STOP + 50000)
+return(df)}) %>% lapply(., function(df) { df$START[df$START < 0] <- 0
+df$START <- as.integer(df$START)
+return(df)})
+
+rose_se_extended <- lapply(rose_extended_list, function(df) { df <- filter(df, df$isSuper == 1)
+return(df)})
 
 
-
-
+rose_extended_gr <- lapply(rose_out_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
 
 
 
@@ -76,7 +106,6 @@ enhancer_quant_list <- lapply(enhancer_quant_list, subset_quants)
 
 enhancer_quant_list <- lapply(enhancer_quant_list, filter_chr_col)
 
-enhancer_quant_0h <- enhancer_quant_list$`0h_AL`
 
 enhancer_quant_gr_list <- lapply(enhancer_quant_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
 
@@ -107,6 +136,8 @@ merged_list <- lapply(merged_list, enhancer_quant_id)
 # Read gene expression TPM data ####
 
 tpm_matrix <- read_delim("./data/tpm_matrix_gene.txt", delim = "\t", col_names = TRUE)
+
+# Get TSS per gene from Biomart ####
 
 ensembl <- useEnsembl(biomart = "genes",
                       dataset = "mmusculus_gene_ensembl",
@@ -167,65 +198,41 @@ tss_out <- tss_per_gene %>%
 
 tss_out$tss_1 <- tss_out$tss + 1 
 
+tss_out$chr <- paste0("chr", tss_out$chr)
+
 tss_gr <- makeGRangesFromDataFrame(tss_out, seqnames.field = "chr", start.field = "tss", end.field = "tss_1",
                                    strand.field = "strand", keep.extra.columns = TRUE, ignore.strand = FALSE)
 
 
-gr_0h <- rose_gr_list$`0h_AL`
+# Find genes within 50 kbp of SE by overlapping tss_gr with extended rose output ####
+
+tss_anno_list <- list(
+    '0h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`0h_AL`)),
+    '1h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`1h_AL`)),
+    '1h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`1h_FAST`)),
+    '3h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`3h_AL`)),
+    '3h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`3h_FAST`)),
+    '6h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`6h_AL`)),
+    '6h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`6h_FAST`)),
+    '12h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`12h_AL`)),
+    '12h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`12h_FAST`)),
+    '24h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`24h_AL`)),
+    '24h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`24h_FAST`)))
 
 
-extend_range <- function(mode, position, extend_by = 50000) {
-    
-    if (mode == "start") {
-        
-        if((position - extend_by) < 0) {
-            start_extended <- 0
-        } else {
-            start_extended <- position - extend_by
-        }
-        
-        return(start_extended)
-    } else if (mode == "end") {
-        
-        end_extended <- position + extend_by
-        
-        return(end_extended)
-    } else {
-        
-        stop("mode must be one of either 'start' or 'end'")
-        
-    }
-    
-}
 
-enhancer_quant_0h <- enhancer_quant_list$`0h_AL`
 
-enhancer_tss_annotation <- function(enhancer, tss = tss_out) {
-    
-    for (i in 1:nrow(enhancer)) {
-        
-        start_extended <- extend_range(mode = "start", position = enhancer[i, "start"])
-        
-        end_extended <- extend_range(mode = "end", position = enhancer[i, "end"])
-        
-        annotated_genes <- vector()    
-        
-        for(j in 1:nrow(tss)) {
-            
-            if (tss[j, "tss"] > start_extended & tss[j, "tss_1"] < end_extended) {
-                annotated_genes <- base::append(annotated_genes, tss[j, "gene_name"])
-            }
-            
-            return(annotated_genes)
-        }
-        
-        enhancer[i, "annotated_genes"] <- annotated_genes
-    }
-    
-    return(enhancer)
-}
 
-enhancer_quant_0h <- enhancer_tss_annotation(enhancer_quant_0h)
+
+
+
+
+
+
+
+
+
+
 
 
 
