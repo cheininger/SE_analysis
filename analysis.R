@@ -86,13 +86,15 @@ rose_extended_list <- lapply(rose_out_list, function(df) { df$START <- as.intege
 return(df)}) %>% lapply(., function(df) { df$STOP <- as.integer(df$STOP + 50000)
 return(df)}) %>% lapply(., function(df) { df$START[df$START < 0] <- 0
 df$START <- as.integer(df$START)
-return(df)})
+return(df)}) %>% lapply(., function(df) { df <- df[c("chr", "START", "STOP", "REGION_ID", "stitchedPeakRank", "isSuper")]})
 
-rose_se_extended <- lapply(rose_extended_list, function(df) { df <- filter(df, df$isSuper == 1)
-return(df)})
+rose_se_extended <- lapply(rose_extended_list, function(df) { df_sub <- filter(df, isSuper == 1)
+return(df_sub)})
 
 
-rose_extended_gr <- lapply(rose_out_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
+rose_extended_gr <- lapply(rose_extended_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
+
+rose_se_extended_gr <- lapply(rose_se_extended, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
 
 
 
@@ -136,6 +138,8 @@ merged_list <- lapply(merged_list, enhancer_quant_id)
 # Read gene expression TPM data ####
 
 tpm_matrix <- read_delim("./data/tpm_matrix_gene.txt", delim = "\t", col_names = TRUE)
+
+tpm_matrix <- column_to_rownames(tpm_matrix, var = "gene")
 
 # Get TSS per gene from Biomart ####
 
@@ -200,6 +204,8 @@ tss_out$tss_1 <- tss_out$tss + 1
 
 tss_out$chr <- paste0("chr", tss_out$chr)
 
+tss_out <- tss_out[c("chr", "tss", "tss_1", "gene_name", "biotype")]
+
 tss_gr <- makeGRangesFromDataFrame(tss_out, seqnames.field = "chr", start.field = "tss", end.field = "tss_1",
                                    strand.field = "strand", keep.extra.columns = TRUE, ignore.strand = FALSE)
 
@@ -220,9 +226,49 @@ tss_anno_list <- list(
     '24h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`24h_FAST`)))
 
 
+tss_se_anno_list <- list(
+    '0h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`0h_AL`)),
+    '1h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`1h_AL`)),
+    '1h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`1h_FAST`)),
+    '3h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`3h_AL`)),
+    '3h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`3h_FAST`)),
+    '6h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`6h_AL`)),
+    '6h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`6h_FAST`)),
+    '12h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`12h_AL`)),
+    '12h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`12h_FAST`)),
+    '24h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`24h_AL`)),
+    '24h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`24h_FAST`)))
 
 
+tss_se_anno_list <- lapply(tss_se_anno_list, function(df) {
+    names(df) <- c("tss_chr", "tss_start", "tss_end", "tss_width", "tss_strand",
+                   "tss_gene_name", "tss_biotype", "gene_name", "biotype",
+                   "se_extended_chr", "se_extended_start", "se_extended_end",
+                   "se_extended_width", "se_extended_strand", "se_extended_ID",
+                   "se_extended_stitchedPeakRank", "se_extended_isSuper",
+                   "ID", "stitchedPeakRank", "isSuper")
+    return(df)}) %>% lapply(., function(df) {
+        df <- df[c("gene_name", "se_extended_chr", "se_extended_start", "se_extended_end",
+                   "se_extended_ID", "se_extended_stitchedPeakRank", "se_extended_isSuper")]
+        return(df)})
 
+
+# Add TPM information to TSS annotated SEs ####
+
+samples <- names(tss_se_anno_list)
+
+
+for (sample in samples) {
+    
+    for (i in 1:nrow(tss_se_anno_list[[sample]])) {
+        
+        gene <- tss_se_anno_list[[sample]]$gene_name
+        
+        tss_se_anno_list[[sample]]$TPM <- tpm_matrix[gene, sample]
+        
+    }
+    
+}
 
 
 
