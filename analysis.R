@@ -271,6 +271,18 @@ tss_se_re_anno_list <- list(
 )
 
 
+write_delim(tss_se_re_anno_list$`0h_AL`, "./data/0h_AL_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`1h_AL`, "./data/1h_AL_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`1h_FAST`, "./data/1h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`3h_AL`, "./data/3h_AL_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`3h_FAST`, "./data/3h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`6h_AL`, "./data/6h_AL_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`6h_FAST`, "./data/6h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`12h_AL`, "./data/12h_AL_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`12h_FAST`, "./data/12h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`24h_AL`, "./data/24h_AL_annotated.txt", delim = "\t", col_names = TRUE)
+write_delim(tss_se_re_anno_list$`24h_FAST`, "./data/24h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
+
 
 
 
