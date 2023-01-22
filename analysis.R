@@ -97,7 +97,6 @@ rose_extended_gr <- lapply(rose_extended_list, makeGRangesFromDataFrame, ignore.
 rose_se_extended_gr <- lapply(rose_se_extended, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
 
 
-
 # read enhancer quantification data into a list and make GRanges ####
 
 enhancer_quant_list <- list.files(path = "./data", pattern = "enhancer_quant_*", full.names = TRUE) %>% 
@@ -110,29 +109,6 @@ enhancer_quant_list <- lapply(enhancer_quant_list, filter_chr_col)
 
 
 enhancer_quant_gr_list <- lapply(enhancer_quant_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
-
-
-
-# Merge all ranges per timepoint by overlap ####
-
-merged_0h <- as.data.frame(mergeByOverlaps(enhancer_quant_gr_list[[1]], rose_gr_list[[1]]))
-
-
-merged_list <- list(
-    '0h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`0h_AL`, rose_gr_list$`0h_AL`)),
-    '1h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`1h_AL`, rose_gr_list$`1h_AL`)),
-    '1h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`1h_FAST`, rose_gr_list$`1h_FAST`)),
-    '3h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`3h_AL`, rose_gr_list$`3h_AL`)),
-    '3h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`3h_FAST`, rose_gr_list$`3h_FAST`)),
-    '6h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`6h_AL`, rose_gr_list$`6h_AL`)),
-    '6h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`6h_FAST`, rose_gr_list$`6h_FAST`)),
-    '12h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`12h_AL`, rose_gr_list$`12h_AL`)),
-    '12h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`12h_FAST`, rose_gr_list$`12h_FAST`)),
-    '24h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`24h_AL`, rose_gr_list$`24h_AL`)),
-    '24h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`24h_FAST`, rose_gr_list$`24h_FAST`)))
-
-
-merged_list <- lapply(merged_list, enhancer_quant_id)
 
 
 # Read gene expression TPM data ####
@@ -156,7 +132,7 @@ gene_tss <- getBM(attributes = c("external_gene_name",
                                  "strand",
                                  "gene_biotype"),
                   filters = "external_gene_name",
-                  values = tpm_matrix$gene,
+                  values = rownames(tpm_matrix),
                   mart = ensembl)
 
 
@@ -271,7 +247,28 @@ for (sample in samples) {
 }
 
 
+tss_se_anno_list <- lapply(tss_se_anno_list, function(df) {
+    names(df) <- c("gene_name", "chr", "start", "end", "ID", "stitchedPeakRank",
+                   "isSuper", "TPM")
+    return(df)
+})
 
+tss_se_anno_gr <- lapply(tss_se_anno_list, makeGRangesFromDataFrame, keep.extra.columns = TRUE)
+
+
+tss_se_re_anno_list <- list(
+    '0h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`0h_AL`, tss_se_anno_gr$`0h_AL`)),
+    '1h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`1h_AL`, tss_se_anno_gr$`1h_AL`)),
+    '1h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`1h_FAST`, tss_se_anno_gr$`1h_FAST`)),
+    '3h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`3h_AL`, tss_se_anno_gr$`3h_AL`)),
+    '3h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`3h_FAST`, tss_se_anno_gr$`3h_FAST`)),
+    '6h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`6h_AL`, tss_se_anno_gr$`6h_AL`)),
+    '6h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`6h_FAST`, tss_se_anno_gr$`6h_FAST`)),
+    '12h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`12h_AL`, tss_se_anno_gr$`12h_AL`)),
+    '12h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`12h_FAST`, tss_se_anno_gr$`12h_FAST`)),
+    '24h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`24h_AL`, tss_se_anno_gr$`24h_AL`)),
+    '24h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`24h_FAST`, tss_se_anno_gr$`24h_FAST`))
+)
 
 
 
