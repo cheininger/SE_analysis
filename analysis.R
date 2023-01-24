@@ -8,7 +8,7 @@ library(biomaRt)
 
 subset_quants <- function(df) {
     df <- df[,c(1:3,7:9)]
-    colnames(df) <- c("chr", "start", "end", "strand", "ID", "TPM")
+    colnames(df) <- c("chr", "start", "end", "strand", "ID", "quant")
     return(df)
 }
 
@@ -42,73 +42,104 @@ sort_df <- function(df) {
     df[order(df$chr),]
 }
 
-extend_range <- function(mode, position, extend_by = 50000) {
-    
-    if (mode == "start") {
-        
-        if((position - extend_by) < 0) {
-            start_extended <- 0
-        } else {
-            start_extended <- position - extend_by
-        }
-        
-        return(start_extended)
-    } else if (mode == "end") {
-        
-        end_extended <- position + extend_by
-        
-        return(end_extended)
-    } else {
-        
-        stop("mode must be one of either 'start' or 'end'")
-        
-    }
-    
-}
 
-# first read all ROSE output files into a list and make GRanges ####
+# First, read all ROSE output files into a list and make GRanges ####
 
 rose_out_list <- list.files(path = "./data", pattern = "*_AllStitched.table.txt", full.names = TRUE) %>% 
     setNames(., str_extract(., "([:digit:]+h\\_[:upper:]+)")) %>% 
     lapply(., read_delim, delim = "\t", col_names = TRUE, skip = 5, col_types = c("cciiiidii")) 
 
 
-rose_out_list <- lapply(rose_out_list, remove_chr_double)
+rose_out_list <- lapply(rose_out_list, remove_chr_double)           # some entries in the chromosome name contain "chrchr"
+                                                                    # this function deals with that
 
-rose_out_list <- lapply(rose_out_list, filter_chr_col)
+rose_out_list <- lapply(rose_out_list, filter_chr_col)              # filter so that only chromosomes 1-19 and X and Y are included 
 
-rose_out_list <- lapply(rose_out_list, rose_enhancer_id)
+rose_out_list <- lapply(rose_out_list, rose_enhancer_id)            # generate ID for each stitched region from ROSE
 
-rose_out_list <- lapply(rose_out_list, sort_df)
+rose_out_list <- lapply(rose_out_list, sort_df)                     # sort by chromosome name
 
 
-rose_extended_list <- lapply(rose_out_list, function(df) { df$START <- as.integer(df$START - 50000) 
-return(df)}) %>% lapply(., function(df) { df$STOP <- as.integer(df$STOP + 50000)
-return(df)}) %>% lapply(., function(df) { df$START[df$START < 0] <- 0
+rose_se_extended <- lapply(rose_out_list, function(df) { df$START <- as.integer(df$START - 50000)             
+return(df)}) %>% lapply(., function(df) { df$STOP <- as.integer(df$STOP + 50000)                                # extend start and stop positions by 50k
+return(df)}) %>% lapply(., function(df) { df$START[df$START < 0] <- 0                                           # set negative values for start to 0
 df$START <- as.integer(df$START)
-return(df)}) %>% lapply(., function(df) { df <- df[c("chr", "START", "STOP", "REGION_ID", "stitchedPeakRank", "isSuper")]})
+return(df)}) %>% lapply(., function(df) { df <- df[c("chr", "START", "STOP", "REGION_ID", "stitchedPeakRank", "isSuper")]
+return(df)}) %>% lapply(., function(df) { df <- filter(df, isSuper == 1)                                        # continue only with super-enhancers
+return(df)})
 
-rose_se_extended <- lapply(rose_extended_list, function(df) { df_sub <- filter(df, isSuper == 1)
-return(df_sub)})
-
-
-rose_extended_gr <- lapply(rose_extended_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
 
 rose_se_extended_gr <- lapply(rose_se_extended, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
 
 
-# read enhancer quantification data into a list and make GRanges ####
+# Read ranges for fasting-activated enhancers ####
 
-enhancer_quant_list <- list.files(path = "./data", pattern = "enhancer_quant_*", full.names = TRUE) %>% 
-    setNames(., str_extract(., "([:digit:]+h\\_[:upper:]+)")) %>% 
-    lapply(., read_delim, delim = "\t", col_names = FALSE)
+fasting_activated_enhancer_list <- list.files(path = "./data/", pattern = "fasting_activated_*", full.names = TRUE) %>% 
+    setNames(., str_extract(., "([:digit:]+h)")) %>% 
+    lapply(., read_delim, delim = "\t", col_names = TRUE)
 
-enhancer_quant_list <- lapply(enhancer_quant_list, subset_quants)
-
-enhancer_quant_list <- lapply(enhancer_quant_list, filter_chr_col)
+fasting_activated_enhancer_gr_list <- lapply(fasting_activated_enhancer_list, makeGRangesFromDataFrame, ignore.strand = TRUE, keep.extra.columns = TRUE)
 
 
-enhancer_quant_gr_list <- lapply(enhancer_quant_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
+# Subset ROSE ranges with fasting-activated enhancers ####
+
+
+se_w_fasting_activated_list <- vector(mode = "list", length = 5)
+
+se_w_fasting_activated_list[[1]] <- as.data.frame(subsetByOverlaps(rose_se_extended_gr$`1h_FAST`, fasting_activated_enhancer_gr_list$`1h`))
+se_w_fasting_activated_list[[2]] <- as.data.frame(subsetByOverlaps(rose_se_extended_gr$`3h_FAST`, fasting_activated_enhancer_gr_list$`3h`))
+se_w_fasting_activated_list[[3]] <- as.data.frame(subsetByOverlaps(rose_se_extended_gr$`6h_FAST`, fasting_activated_enhancer_gr_list$`6h`))
+se_w_fasting_activated_list[[4]] <- as.data.frame(subsetByOverlaps(rose_se_extended_gr$`12h_FAST`, fasting_activated_enhancer_gr_list$`12h`))
+se_w_fasting_activated_list[[5]] <- as.data.frame(subsetByOverlaps(rose_se_extended_gr$`24h_FAST`, fasting_activated_enhancer_gr_list$`24h`))
+
+names(se_w_fasting_activated_list) <- c("1h", "3h", "6h", "12h", "24h")
+
+
+# Generate homerpeak files for motif analysis with HOMER ####
+
+homerpeak_1h <- se_w_fasting_activated_list$`1h`[c("REGION_ID", "seqnames", "start", "end")]
+homerpeak_1h <- homerpeak_1h[rep(seq_len(nrow(homerpeak_1h)), each = 2), ]
+homerpeak_1h <- homerpeak_1h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_1h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_1h, "./output/se_activated_1h.homerpeak", delim = "\t", col_names = FALSE)
+
+homerpeak_3h <- se_w_fasting_activated_list$`3h`[c("REGION_ID", "seqnames", "start", "end")]
+homerpeak_3h <- homerpeak_3h[rep(seq_len(nrow(homerpeak_3h)), each = 2), ]
+homerpeak_3h <- homerpeak_3h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_3h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_3h, "./output/se_activated_3h.homerpeak", delim = "\t", col_names = FALSE)
+
+homerpeak_6h <- se_w_fasting_activated_list$`6h`[c("REGION_ID", "seqnames", "start", "end")]
+homerpeak_6h <- homerpeak_6h[rep(seq_len(nrow(homerpeak_6h)), each = 2), ]
+homerpeak_6h <- homerpeak_6h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_6h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_6h, "./output/se_activated_6h.homerpeak", delim = "\t", col_names = FALSE)
+
+homerpeak_12h <- se_w_fasting_activated_list$`12h`[c("REGION_ID", "seqnames", "start", "end")]
+homerpeak_12h <- homerpeak_12h[rep(seq_len(nrow(homerpeak_12h)), each = 2), ]
+homerpeak_12h <- homerpeak_12h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_12h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_12h, "./output/se_activated_12h.homerpeak", delim = "\t", col_names = FALSE)
+
+homerpeak_24h <- se_w_fasting_activated_list$`24h`[c("REGION_ID", "seqnames", "start", "end")]
+homerpeak_24h <- homerpeak_24h[rep(seq_len(nrow(homerpeak_24h)), each = 2), ]
+homerpeak_24h <- homerpeak_24h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_24h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_24h, "./output/se_activated_24h.homerpeak", delim = "\t", col_names = FALSE)
+
+
+# Make GRanges objects from filtered super-enhancers, resetting positions in the process
+
+se_w_activated_extended <- lapply(se_w_fasting_activated_list, function(df) { df$start <- as.integer(df$start + 50000)
+return(df)}) %>% lapply(., function(df) { df$end <- as.integer(df$end - 50000)                                  # reset positions for super-enhancers
+return(df)}) %>% lapply(., function(df) { df <- df[c("seqnames", "start", "end", "REGION_ID", "stitchedPeakRank", "isSuper")]
+return(df)}) %>% lapply(., function(df) { names(df)[names(df) == "seqnames"] <- "chr"
+return(df)}) %>% lapply(., makeGRangesFromDataFrame, ignore.strand = TRUE, keep.extra.columns = TRUE)
 
 
 # Read gene expression TPM data ####
@@ -155,7 +186,9 @@ stopifnot(mapply(function(x, y) x < y,
 # Reduce to most upstream TSS per gene -----------------------------------------
 
 # Detach biomaRt before loading dplyr because they both define `select`
-detach("package:biomaRt")
+# detach("package:biomaRt")
+
+# Added dplyr:: before select to avoid conflict and detaching biomaRt
 suppressPackageStartupMessages(library("dplyr"))
 
 tss_per_gene <- gene_tss %>%
@@ -169,14 +202,14 @@ tss_per_gene <- gene_tss %>%
 
 tss_out <- tss_per_gene %>%
     mutate(strand = ifelse(strand == 1, "+", "-")) %>%
-    select(gene_id = ensembl_gene_id,
+    dplyr::select(gene_id = ensembl_gene_id,
            gene_name = external_gene_name,
            chr = chromosome_name,
            tss,
            strand,
            biotype = gene_biotype)
 
-tss_out$tss_1 <- tss_out$tss + 1 
+tss_out$tss_1 <- tss_out$tss + 1                        # add "end" position for TSS to be able to make GRanges object 
 
 tss_out$chr <- paste0("chr", tss_out$chr)
 
@@ -188,45 +221,29 @@ tss_gr <- makeGRangesFromDataFrame(tss_out, seqnames.field = "chr", start.field 
 
 # Find genes within 50 kbp of SE by overlapping tss_gr with extended rose output ####
 
-tss_anno_list <- list(
-    '0h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`0h_AL`)),
-    '1h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`1h_AL`)),
-    '1h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`1h_FAST`)),
-    '3h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`3h_AL`)),
-    '3h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`3h_FAST`)),
-    '6h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`6h_AL`)),
-    '6h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`6h_FAST`)),
-    '12h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`12h_AL`)),
-    '12h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`12h_FAST`)),
-    '24h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`24h_AL`)),
-    '24h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_extended_gr$`24h_FAST`)))
-
 
 tss_se_anno_list <- list(
-    '0h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`0h_AL`)),
-    '1h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`1h_AL`)),
-    '1h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`1h_FAST`)),
-    '3h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`3h_AL`)),
-    '3h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`3h_FAST`)),
-    '6h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`6h_AL`)),
-    '6h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`6h_FAST`)),
-    '12h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`12h_AL`)),
-    '12h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`12h_FAST`)),
-    '24h_AL' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`24h_AL`)),
-    '24h_FAST' = as.data.frame(mergeByOverlaps(tss_gr, rose_se_extended_gr$`24h_FAST`)))
+    '1h' = as.data.frame(mergeByOverlaps(tss_gr, se_w_activated_extended$`1h`)),
+    '3h' = as.data.frame(mergeByOverlaps(tss_gr, se_w_activated_extended$`3h`)),
+    '6h' = as.data.frame(mergeByOverlaps(tss_gr, se_w_activated_extended$`6h`)),
+    '12h' = as.data.frame(mergeByOverlaps(tss_gr, se_w_activated_extended$`12h`)),
+    '24h' = as.data.frame(mergeByOverlaps(tss_gr, se_w_activated_extended$`24h`))
+    )
 
 
 tss_se_anno_list <- lapply(tss_se_anno_list, function(df) {
     names(df) <- c("tss_chr", "tss_start", "tss_end", "tss_width", "tss_strand",
                    "tss_gene_name", "tss_biotype", "gene_name", "biotype",
-                   "se_extended_chr", "se_extended_start", "se_extended_end",
-                   "se_extended_width", "se_extended_strand", "se_extended_ID",
-                   "se_extended_stitchedPeakRank", "se_extended_isSuper",
+                   "se_chr", "se_start", "se_end", "se_width", "se_strand", 
+                   "se_ID", "se_stitchedPeakRank", "se_isSuper",
                    "ID", "stitchedPeakRank", "isSuper")
     return(df)}) %>% lapply(., function(df) {
-        df <- df[c("gene_name", "se_extended_chr", "se_extended_start", "se_extended_end",
-                   "se_extended_ID", "se_extended_stitchedPeakRank", "se_extended_isSuper")]
+        df <- df[c("gene_name", "se_chr", "se_start", "se_end",
+                   "se_ID", "se_stitchedPeakRank", "se_isSuper")]
+        return(df)}) %>% lapply(., function(df) { df$se_start <- as.integer(df$se_start + 50000)
+        return(df)}) %>% lapply(., function(df) { df$se_end <- as.integer(df$se_end - 50000)
         return(df)})
+
 
 
 # Add TPM information to TSS annotated SEs ####
@@ -240,7 +257,7 @@ for (sample in samples) {
         
         gene <- tss_se_anno_list[[sample]]$gene_name
         
-        tss_se_anno_list[[sample]]$TPM <- tpm_matrix[gene, sample]
+        tss_se_anno_list[[sample]]$TPM <- tpm_matrix[gene, paste0(sample, "_FAST")]
         
     }
     
@@ -251,37 +268,26 @@ tss_se_anno_list <- lapply(tss_se_anno_list, function(df) {
     names(df) <- c("gene_name", "chr", "start", "end", "ID", "stitchedPeakRank",
                    "isSuper", "TPM")
     return(df)
+}) %>% lapply(., function(df) {
+    df <- filter(df, TPM >= 5)
+    return(df)
+}) %>% lapply(., function(df) {
+    df <- df %>% distinct(gene_name, .keep_all = TRUE)
+    return(df)
 })
+
+
+write_delim(as.data.frame(tss_se_anno_list$`1h`$gene_name), "./output/annotated_genes_se_1h.txt", delim = "\t", col_names = FALSE)
+write_delim(as.data.frame(tss_se_anno_list$`3h`$gene_name), "./output/annotated_genes_se_3h.txt", delim = "\t", col_names = FALSE)
+write_delim(as.data.frame(tss_se_anno_list$`6h`$gene_name), "./output/annotated_genes_se_6h.txt", delim = "\t", col_names = FALSE)
+write_delim(as.data.frame(tss_se_anno_list$`12h`$gene_name), "./output/annotated_genes_se_12h.txt", delim = "\t", col_names = FALSE)
+write_delim(as.data.frame(tss_se_anno_list$`24h`$gene_name), "./output/annotated_genes_se_24h.txt", delim = "\t", col_names = FALSE)
+
+
 
 tss_se_anno_gr <- lapply(tss_se_anno_list, makeGRangesFromDataFrame, keep.extra.columns = TRUE)
 
 
-tss_se_re_anno_list <- list(
-    '0h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`0h_AL`, tss_se_anno_gr$`0h_AL`)),
-    '1h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`1h_AL`, tss_se_anno_gr$`1h_AL`)),
-    '1h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`1h_FAST`, tss_se_anno_gr$`1h_FAST`)),
-    '3h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`3h_AL`, tss_se_anno_gr$`3h_AL`)),
-    '3h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`3h_FAST`, tss_se_anno_gr$`3h_FAST`)),
-    '6h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`6h_AL`, tss_se_anno_gr$`6h_AL`)),
-    '6h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`6h_FAST`, tss_se_anno_gr$`6h_FAST`)),
-    '12h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`12h_AL`, tss_se_anno_gr$`12h_AL`)),
-    '12h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`12h_FAST`, tss_se_anno_gr$`12h_FAST`)),
-    '24h_AL' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`24h_AL`, tss_se_anno_gr$`24h_AL`)),
-    '24h_FAST' = as.data.frame(mergeByOverlaps(enhancer_quant_gr_list$`24h_FAST`, tss_se_anno_gr$`24h_FAST`))
-)
-
-
-write_delim(tss_se_re_anno_list$`0h_AL`, "./data/0h_AL_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`1h_AL`, "./data/1h_AL_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`1h_FAST`, "./data/1h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`3h_AL`, "./data/3h_AL_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`3h_FAST`, "./data/3h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`6h_AL`, "./data/6h_AL_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`6h_FAST`, "./data/6h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`12h_AL`, "./data/12h_AL_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`12h_FAST`, "./data/12h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`24h_AL`, "./data/24h_AL_annotated.txt", delim = "\t", col_names = TRUE)
-write_delim(tss_se_re_anno_list$`24h_FAST`, "./data/24h_FAST_annotated.txt", delim = "\t", col_names = TRUE)
 
 
 
