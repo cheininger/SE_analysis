@@ -8,7 +8,7 @@ library(biomaRt)
 
 subset_quants <- function(df) {
     df <- df[,c(1:3,7:9)]
-    colnames(df) <- c("chr", "start", "end", "strand", "ID", "quant")
+    colnames(df) <- c("chr", "start", "end", "strand", "ID", "TPM")
     return(df)
 }
 
