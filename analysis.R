@@ -59,6 +59,8 @@ rose_out_list <- lapply(rose_out_list, rose_enhancer_id)            # generate I
 
 rose_out_list <- lapply(rose_out_list, sort_df)                     # sort by chromosome name
 
+rose_out_gr <- lapply(rose_out_list, makeGRangesFromDataFrame, ignore.strand = FALSE, keep.extra.columns = TRUE)
+
 
 rose_se_extended <- lapply(rose_out_list, function(df) { df$START <- as.integer(df$START - 50000)             
 return(df)}) %>% lapply(., function(df) { df$STOP <- as.integer(df$STOP + 50000)                                # extend start and stop positions by 50k
