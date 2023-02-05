@@ -3,6 +3,7 @@
 library(tidyverse)
 library(GenomicRanges)
 library(biomaRt)
+library(WebGestaltR)
 
 # Define functions ####
 
@@ -286,8 +287,37 @@ write_delim(as.data.frame(tss_se_anno_list$`12h`$gene_name), "./output/annotated
 write_delim(as.data.frame(tss_se_anno_list$`24h`$gene_name), "./output/annotated_genes_se_24h.txt", delim = "\t", col_names = FALSE)
 
 
+# Run WebGestalt for each set of genes ####
 
-tss_se_anno_gr <- lapply(tss_se_anno_list, makeGRangesFromDataFrame, keep.extra.columns = TRUE)
+WebGestaltR(enrichMethod = "ORA", organism = "mmusculus", interestGeneType = "genesymbol",
+            enrichDatabase = "geneontology_Biological_Process_noRedundant",
+            interestGeneFile = "./output/annotated_genes_se_1h.txt", referenceSet = "genome",
+            sigMethod = "fdr", outputDirectory = "./output/", isOutput = TRUE, projectName = "genes_1_up")
+
+WebGestaltR(enrichMethod = "ORA", organism = "mmusculus", interestGeneType = "genesymbol",
+            enrichDatabase = "geneontology_Biological_Process_noRedundant",
+            interestGeneFile = "./output/annotated_genes_se_3h.txt", referenceSet = "genome",
+            sigMethod = "fdr", outputDirectory = "./output/", isOutput = TRUE, projectName = "genes_3_up")
+
+WebGestaltR(enrichMethod = "ORA", organism = "mmusculus", interestGeneType = "genesymbol",
+            enrichDatabase = "geneontology_Biological_Process_noRedundant",
+            interestGeneFile = "./output/annotated_genes_se_6h.txt", referenceSet = "genome",
+            sigMethod = "fdr", outputDirectory = "./output/", isOutput = TRUE, projectName = "genes_6_up")
+
+WebGestaltR(enrichMethod = "ORA", organism = "mmusculus", interestGeneType = "genesymbol",
+            enrichDatabase = "geneontology_Biological_Process_noRedundant",
+            interestGeneFile = "./output/annotated_genes_se_12h.txt", referenceSet = "genome",
+            sigMethod = "fdr", outputDirectory = "./output/", isOutput = TRUE, projectName = "genes_12_up")
+
+WebGestaltR(enrichMethod = "ORA", organism = "mmusculus", interestGeneType = "genesymbol",
+            enrichDatabase = "geneontology_Biological_Process_noRedundant",
+            interestGeneFile = "./output/annotated_genes_se_24h.txt", referenceSet = "genome",
+            sigMethod = "fdr", outputDirectory = "./output/", isOutput = TRUE, projectName = "genes_24_up")
+
+
+
+
+# tss_se_anno_gr <- lapply(tss_se_anno_list, makeGRangesFromDataFrame, keep.extra.columns = TRUE)
 
 
 

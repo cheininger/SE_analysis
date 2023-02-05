@@ -1,0 +1,2 @@
+geneSet	description	link	size	overlap	expect	enrichmentRatio	pValue	FDR	overlapId	userId
+GO:0042737	drug catabolic process	http://amigo.geneontology.org/amigo/term/GO:0042737	151	10	2.019268099791502	4.952289396852525	3.5273888334796943e-5	0.028642397327855118	11522;11669;12359;13077;13101;13105;13106;56448;545123;545817	Cyp2e1;Cat;Aldh2;Cyp2w1;Cyp1a2;Cyp2d22;Cyp2d11;Cyp2d9;Adh1;Cyp2d10
