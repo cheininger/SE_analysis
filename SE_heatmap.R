@@ -93,10 +93,19 @@ rose_unique_list <- lapply(rose_out_list, function(df) {
 
 issuper_df <- make_issuper_matrix(rose_unique_list)
 
+issuper_matrix <- data.matrix(issuper_df)
+
+issuper_df <- as.data.frame(issuper_matrix[rowSums(issuper_matrix) >= 1, ])
+
+issuper_df <- issuper_df[, c("0h_AL_isSuper", "1h_AL_isSuper", "1h_FAST_isSuper", "3h_AL_isSuper", "3h_FAST_isSuper",
+                             "6h_AL_isSuper", "6h_FAST_isSuper", "12h_AL_isSuper", "12h_FAST_isSuper", "24h_AL_isSuper", "24h_FAST_isSuper")]
+
 # Make heatmap
 
 issuper_heatmap <- Heatmap(as.matrix(issuper_df),
-                           col = colorRamp2(c(0, 0.5, 1), c("white", "gray", "red")))
+                           col = colorRamp2(c(0, 0.5, 1), c("gray", "black", "red")),
+                           show_row_names = FALSE,
+                           cluster_columns = FALSE)
 
 draw(issuper_heatmap)
 
