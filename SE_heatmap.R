@@ -89,7 +89,7 @@ rose_unique_list <- lapply(rose_out_list, function(df) {
     
 })
 
-# Make data frame of only isSuper values
+# Make data frame of only isSuper values ####
 
 issuper_df <- make_issuper_matrix(rose_unique_list)
 
@@ -97,17 +97,79 @@ issuper_matrix <- data.matrix(issuper_df)
 
 issuper_df <- as.data.frame(issuper_matrix[rowSums(issuper_matrix) >= 1, ])
 
-issuper_df <- issuper_df[, c("0h_AL_isSuper", "1h_AL_isSuper", "1h_FAST_isSuper", "3h_AL_isSuper", "3h_FAST_isSuper",
-                             "6h_AL_isSuper", "6h_FAST_isSuper", "12h_AL_isSuper", "12h_FAST_isSuper", "24h_AL_isSuper", "24h_FAST_isSuper")]
+issuper_df <- issuper_df[, c("0h_AL_isSuper", "1h_AL_isSuper", "1h_FAST_isSuper", "6h_AL_isSuper", 
+                             "6h_FAST_isSuper", "12h_AL_isSuper", "12h_FAST_isSuper", "24h_AL_isSuper", "24h_FAST_isSuper")]
 
-# Make heatmap
+names(issuper_df) <- c("0h_AL", "1h_AL", "1h_FAST", "6h_AL", "6h_FAST", "12h_AL", "12h_FAST", "24h_AL", "24h_FAST")
+
+# Make heatmap ####
+
+png("./plots/issuper_heatmap.png", width = 30, height = 40, units = "cm", res = 300)
 
 issuper_heatmap <- Heatmap(as.matrix(issuper_df),
                            col = colorRamp2(c(0, 0.5, 1), c("gray", "black", "red")),
                            show_row_names = FALSE,
-                           cluster_columns = FALSE)
+                           cluster_columns = FALSE,
+                           column_names_gp = gpar(fontsize = 36))
 
 draw(issuper_heatmap)
+
+dev.off()
+
+
+# Filter for SEs that appear during fasting per time point ####
+
+coming_se_1h <- issuper_df[, c("1h_AL_isSuper", "1h_FAST_isSuper")] %>% 
+    filter(., `1h_FAST_isSuper` == 1 & `1h_AL_isSuper` == 0)
+
+coming_se_6h <- issuper_df[, c("6h_AL_isSuper", "6h_FAST_isSuper")] %>% 
+    filter(., `6h_FAST_isSuper` == 1 & `6h_AL_isSuper` == 0)
+
+coming_se_12h <- issuper_df[, c("12h_AL_isSuper", "12h_FAST_isSuper")] %>% 
+    filter(., `12h_FAST_isSuper` == 1 & `12h_AL_isSuper` == 0)
+
+coming_se_24h <- issuper_df[, c("24h_AL_isSuper", "24h_FAST_isSuper")] %>% 
+    filter(., `24h_FAST_isSuper` == 1 & `24h_AL_isSuper` == 0)
+
+
+# Make homerpeak file for appearing SEs per time point ####
+
+homerpeak_1h <- rownames_to_column(coming_se_1h, var = "REGION_ID")
+homerpeak_1h <- left_join(homerpeak_1h, rose_out_list$`1h_FAST`, by = "REGION_ID")
+homerpeak_1h <- homerpeak_1h[c("REGION_ID", "chr", "START", "STOP")]
+homerpeak_1h <- homerpeak_1h[rep(seq_len(nrow(homerpeak_1h)), each = 2), ]
+homerpeak_1h <- homerpeak_1h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_1h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_1h, "./output/coming_se_1h.homerpeak", delim = "\t", col_names = FALSE)
+
+homerpeak_6h <- rownames_to_column(coming_se_6h, var = "REGION_ID")
+homerpeak_6h <- left_join(homerpeak_6h, rose_out_list$`6h_FAST`, by = "REGION_ID")
+homerpeak_6h <- homerpeak_6h[c("REGION_ID", "chr", "START", "STOP")]
+homerpeak_6h <- homerpeak_6h[rep(seq_len(nrow(homerpeak_6h)), each = 2), ]
+homerpeak_6h <- homerpeak_6h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_6h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_6h, "./output/coming_se_6h.homerpeak", delim = "\t", col_names = FALSE)
+
+homerpeak_12h <- rownames_to_column(coming_se_12h, var = "REGION_ID")
+homerpeak_12h <- left_join(homerpeak_12h, rose_out_list$`12h_FAST`, by = "REGION_ID")
+homerpeak_12h <- homerpeak_12h[c("REGION_ID", "chr", "START", "STOP")]
+homerpeak_12h <- homerpeak_12h[rep(seq_len(nrow(homerpeak_12h)), each = 2), ]
+homerpeak_12h <- homerpeak_12h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_12h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_12h, "./output/coming_se_12h.homerpeak", delim = "\t", col_names = FALSE)
+
+homerpeak_24h <- rownames_to_column(coming_se_24h, var = "REGION_ID")
+homerpeak_24h <- left_join(homerpeak_24h, rose_out_list$`24h_FAST`, by = "REGION_ID")
+homerpeak_24h <- homerpeak_24h[c("REGION_ID", "chr", "START", "STOP")]
+homerpeak_24h <- homerpeak_24h[rep(seq_len(nrow(homerpeak_24h)), each = 2), ]
+homerpeak_24h <- homerpeak_24h %>% 
+    mutate(strand = rep(c("+", "-"), (nrow(homerpeak_24h) / 2))) %>% 
+    mutate(REGION_ID = paste0(REGION_ID, "_", strand))
+write_delim(homerpeak_24h, "./output/coming_se_24h.homerpeak", delim = "\t", col_names = FALSE)
+
 
 
 
